@@ -1,0 +1,12 @@
+.Rhistory
+.RData
+.Ruserdata
+.Rproj.user/
+Rplots.pdf
+__pycache__/
+
+/input/
+/outputs/
+/holdings/data/*
+!/holdings/data/filing_register.csv
+/holdings/results/

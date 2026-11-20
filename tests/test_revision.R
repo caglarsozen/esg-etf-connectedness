@@ -1,0 +1,63 @@
+for(f in sort(list.files('R',pattern='[.]R$',full.names=TRUE)))source(f)
+dir.create('outputs',showWarnings=FALSE);checks<-list()
+check<-function(name,ok,detail=''){checks[[length(checks)+1]]<<-data.frame(check=name,pass=isTRUE(ok),detail=detail)
+  if(!isTRUE(ok))stop(name,call.=FALSE)}
+tol<-1e-7
+# Exact counterexample: same zero mean and variance 0.2, component ES95=1,
+# but the worst mixture has ES95=4/3 at mixture weight 2/3 on A.
+LA<-c(-2,0,2);LB<-c(-1,0,1);pa<-c(.025,.95,.025);pb<-c(.1,.8,.1)
+check('equal_means',abs(sum(LA*pa)-sum(LB*pb))<tol)
+check('equal_variances',abs(sum(LA^2*pa)-sum(LB^2*pb))<tol)
+ca<-esg_cvar(LA,pa);cb<-esg_cvar(LB,pb)
+check('component_ES_exact',max(abs(c(ca,cb)-1))<tol)
+mix<-esg_cvar(c(LA,LB),c(2/3*pa,1/3*pb))
+check('interior_mixture_ES_exact',abs(mix-4/3)<tol)
+A<-list(matrix(-LA/100,3,1),matrix(-LB/100,3,1));P<-list(pa,pb)
+wc<-revision_robust_cvar(A,P,cap=1,ambiguity='components')
+wm<-revision_robust_cvar(A,P,cap=1,ambiguity='mixtures')
+check('component_LP_exact',abs(wc$risk-.01)<tol)
+check('mixture_LP_exact',abs(wm$risk-4/300)<tol)
+check('mixture_permutation',abs(revision_robust_cvar(rev(A),rev(P),cap=1,ambiguity='mixtures')$risk-wm$risk)<tol)
+check('identical_distribution_collapse',abs(revision_robust_cvar(list(A[[1]],A[[1]]),list(pa,pa),cap=1,ambiguity='mixtures')$risk-.01)<tol)
+negative<-revision_robust_cvar(list(matrix(c(.01,.02,.03),3,1)),list(c(.2,.3,.5)),cap=1)
+check('negative_CVaR_allowed',negative$risk<0&&abs(negative$risk+.01)<tol)
+set.seed(412);R<-matrix(rnorm(1000)*.01,200,5);colnames(R)<-paste0('A',1:5)
+pr<-revision_protocol();
+for(i in seq_len(nrow(pr$models))){
+  cv<-revision_covariance(R,pr$models[i,],50L);a<-revision_covariance(R[1:150,],pr$models[i,],50L)
+  check(paste0('prefix_invariance_',pr$models$id[i]),max(abs(a$H[51:150,,]-cv$H[51:150,,]))<tol)
+  check(paste0('one_step_alignment_',pr$models$id[i]),max(abs(a$forecast-cv$H[151,,]))<tol)
+  check(paste0('SPD_',pr$models$id[i]),min(eigen(cv$forecast,symmetric=TRUE)$values)>0)
+}
+E<-matrix(rt(1500,5),300,5);S<-cov(R);p<-runif(300);p<-p/sum(p)
+sc<-esg_match_scenarios(E,p,S)
+check('weighted_zero_mean',max(abs(colSums(sc$scenarios*p)))<tol)
+check('weighted_covariance_match',max(abs(crossprod(sc$scenarios,sc$scenarios*p)-S))<tol)
+base<-esg_cvar_lp(sc$scenarios,p,cap=.4)
+rb<-revision_robust_cvar(list(sc$scenarios,sc$scenarios*1.5),list(p,p),cap=.4,
+  guard_scenarios=sc$scenarios,guard_prob=p,guard_limit=base$CVaR*1.05)
+check('guard_feasible',esg_cvar(-as.numeric(sc$scenarios%*%rb$weights),p)<=base$CVaR*1.05+tol)
+check('guard_not_global_risk_claim',rb$risk>=base$CVaR)
+tr<-esg_trade(c(.7,.3,0),c(.1,.3,.6),25)
+check('self_financing',abs(tr$remaining+tr$cost_fraction-1)<1e-10)
+date<-as.Date('2020-01-01')+0:4;RR<-matrix(c(.1,0,0,0,.1,0,0,0,.1,0),5,2)
+colnames(RR)<-c('A','B');T<-array(.5,c(1,2,1),dimnames=list(NULL,c('A','B'),'EW'))
+bt<-esg_backtest_targets(RR,date,1,T,0)
+manual<-.5*prod(1+RR[2:5,1])+.5*prod(1+RR[2:5,2])
+check('buy_hold_drift',abs(tail(bt$wealth,1)[1]-manual)<1e-10)
+check('signal_precedes_return',min(bt$dates)>date[1])
+fit<-list(Sigma=matrix(c(1,.5,.5,1),2),A=list(diag(c(.8,.3))))
+th<-esg_fevd(fit,1);check('H1_equal_squared_correlation',abs(th[1,2]-.25/1.25)<tol)
+check('diagonal_dynamics_horizon_invariance',max(abs(esg_fevd(fit,20)-th))<tol)
+fit$A<-list(diag(c(.5,.3)),diag(c(.1,.2)))
+check('diagonal_VAR2_horizon_invariance',max(abs(esg_fevd(fit,20)-th))<tol)
+check('GFEVD_rows_sum_one',max(abs(rowSums(esg_fevd(fit,10))-1))<tol)
+esg_csv(do.call(rbind,checks),'outputs/REVISION_CHECKS.csv')
+esg_csv(data.frame(distribution=c('A','B','mixture_2over3_A'),mean=0,variance=.2,
+  ES95=c(ca,cb,mix)),'outputs/equal_covariance_counterexample.csv')
+saveRDS(list(scenarios=list(sc$scenarios,sc$scenarios*1.5),probabilities=list(p,p),
+  weights=rb$weights,risk=rb$risk,guard_limit=base$CVaR*1.05,cap=.4),
+  'outputs/LP_CROSSCHECK.rds',version=2)
+esg_csv(data.frame(sc$scenarios,prob=p),'outputs/LP_CROSSCHECK_input.csv')
+esg_csv(data.frame(weight=rb$weights,risk=rb$risk,guard=base$CVaR*1.05),'outputs/LP_CROSSCHECK_expected.csv')
+cat(nrow(do.call(rbind,checks)),'checks passed\n')

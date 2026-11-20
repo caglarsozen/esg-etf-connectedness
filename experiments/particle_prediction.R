@@ -1,0 +1,41 @@
+# Fixed-parameter bootstrap particle pilot. No rejuvenation: ancestor depletion is reported.
+particle_logsumexp<-function(x){m<-max(x);m+log(sum(exp(x-m)))}
+particle_resample<-function(w){
+ n<-length(w);u<-runif(1)/n+(0:(n-1))/n;cw<-cumsum(w/sum(w));cw[n]<-1
+ findInterval(u,c(0,cw),rightmost.closed=TRUE)
+}
+particle_density<-function(r,L,h,scale,w=rep(1/length(r),length(r))){
+ p<-length(r);N<-ncol(h);stopifnot(dim(L)[2]==2L,nrow(h)==p+2L)
+ v<-exp(h[seq_len(p),,drop=FALSE]);b1<-matrix(L[,1,],p,N)*rep(exp(h[p+1,]/2),each=p)
+ b2<-matrix(L[,2,],p,N)*rep(exp(h[p+2,]/2),each=p);y<-r/scale
+ a11<-1+colSums(b1*b1/v);a22<-1+colSums(b2*b2/v);a12<-colSums(b1*b2/v)
+ de<-a11*a22-a12*a12;stopifnot(all(is.finite(de)&de>0))
+ t1<-colSums(b1*y/v);t2<-colSums(b2*y/v)
+ quad<-colSums(y*y/v)-(a22*t1*t1-2*a12*t1*t2+a11*t2*t2)/de
+ ld<- -.5*(p*log(2*pi)+colSums(h[seq_len(p),,drop=FALSE])+log(de)+quad)-sum(log(scale))
+ sw<-scale*w;pv<-colSums(v*sw^2)+colSums(b1*sw)^2+colSums(b2*sw)^2
+ list(log_density=ld,portfolio_variance=pv)
+}
+particle_pilot<-function(terminal,R,dates,seed){
+ esg_with_seed(seed,{
+ L<-terminal$L;para<-terminal$para;h<-terminal$h;N<-ncol(h);d<-nrow(h)
+ mu<-matrix(para[1,,],d,N);phi<-matrix(para[2,,],d,N);sig<-matrix(para[3,,],d,N)
+ weights<-rep(1/N,N);ancestor<-seq_len(N);ans<-list()
+ for(t in seq_len(nrow(R))){
+  h<-mu+phi*(h-mu)+sig*matrix(rnorm(d*N),d,N)
+  den<-particle_density(R[t,],L,h,terminal$scale)
+  logpost<-log(weights)+den$log_density;pred<-particle_logsumexp(logpost)
+  pit<-sum(weights*pnorm(mean(R[t,])/sqrt(den$portfolio_variance)))
+  weights<-exp(logpost-pred);ess<-1/sum(weights^2)
+  before<-length(unique(ancestor));resampled<-ess<N/2
+  if(resampled){
+   ix<-particle_resample(weights);L<-L[,,ix,drop=FALSE];h<-h[,ix,drop=FALSE]
+   mu<-mu[,ix,drop=FALSE];phi<-phi[,ix,drop=FALSE];sig<-sig[,ix,drop=FALSE]
+   ancestor<-ancestor[ix];weights<-rep(1/N,N)
+  }
+  ans[[t]]<-data.frame(date=dates[t],negative_log_density=-pred,portfolio_PIT=pit,
+   filtering_ESS=ess,unique_ancestors=length(unique(ancestor)),ancestors_before=before,resampled=resampled)
+ }
+ do.call(rbind,ans)
+ })
+}

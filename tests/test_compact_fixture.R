@@ -1,0 +1,23 @@
+# Synthetic software fixture only; it is NOT an empirical four-chain inference.
+for(f in sort(list.files('R',pattern='[.]R$',full.names=TRUE)))source(f)
+source('experiments/parallel_fsv_engine.R')
+tmp<-tempfile('compact_fixture_');dir.create(tmp)
+R<-esg_with_seed(1001,matrix(rnorm(150*3,sd=.01),150,3));colnames(R)<-c('SPY','A','B')
+dates<-as.Date('2020-01-01')+seq_len(nrow(R));spec<-revision_fsv_spec('anchored_dynamic',1000L,500L,2L)
+revision_fsv_fit_worker(R,dates,spec,tmp,only_chain=1L)
+cfg<-readRDS(file.path(tmp,'CONFIGURATION.rds'));cache<-paste0('chain_1_',cfg$identity,'.rds')
+original<-readRDS(file.path(tmp,cache))
+# The compaction routine has four file slots. Copies test storage operations only.
+for(ch in 2:4)file.copy(file.path(tmp,'sampling_checkpoint_chain_1.rds'),file.path(tmp,paste0('sampling_checkpoint_chain_',ch,'.rds')))
+write.csv(data.frame(status='SYNTHETIC_STORAGE_FIXTURE_NOT_A_CONVERGENCE_RESULT'),file.path(tmp,'MCMC_GATE.csv'),row.names=FALSE)
+old<-Sys.getenv('ESG_FSV_FOLDER',unset=NA_character_);Sys.setenv(ESG_FSV_FOLDER=tmp)
+source('analysis/compact_checkpoints.R',local=new.env(parent=.GlobalEnv))
+if(is.na(old))Sys.unsetenv('ESG_FSV_FOLDER') else Sys.setenv(ESG_FSV_FOLDER=old)
+unlink(file.path(tmp,c(cache,'coherent_paths_chain_1.rds','terminal_particles_chain_1.rds')))
+revision_fsv_fit_worker(R,dates,spec,tmp,only_chain=1L)
+replayed<-readRDS(file.path(tmp,cache))
+stopifnot(identical(original$H,replayed$H),identical(original$forecast,replayed$forecast),
+ identical(original$trace,replayed$trace),identical(original$ppc,replayed$ppc))
+unlink(tmp,recursive=TRUE)
+dir.create('outputs',showWarnings=FALSE)
+writeLines('PASS: synthetic compact-checkpoint replay exactly preserves H, forecast, trace and PPC. This is a software fixture, not empirical evidence.','outputs/COMPACT_FIXTURE_CHECK.txt')

@@ -1,0 +1,11 @@
+for(f in sort(list.files('R',pattern='[.]R$',full.names=TRUE)))source(f)
+source('experiments/parallel_fsv_engine.R')
+folder<-'outputs/fsv/anchored_dynamic_20230228_160000_40000_40'
+cfg<-readRDS(file.path(folder,'CONFIGURATION.rds'));pan<-revision_read('input/archived_returns.csv',cfg$cutoff)
+tmp<-tempfile('compact-replay-');dir.create(tmp)
+file.copy(file.path(folder,'sampling_checkpoint_chain_1.rds'),file.path(tmp,'sampling_checkpoint_chain_1.rds'),overwrite=TRUE)
+revision_fsv_fit_worker(pan$R,pan$dates,cfg$spec,tmp,only_chain=1L)
+a<-readRDS(file.path(folder,paste0('chain_1_',cfg$identity,'.rds')))
+b<-readRDS(file.path(tmp,paste0('chain_1_',cfg$identity,'.rds')))
+stopifnot(identical(a$H,b$H),identical(a$forecast,b$forecast),identical(a$trace,b$trace),identical(a$ppc,b$ppc))
+writeLines('PASS: chain 1 replay from compact sampler cache reproduces H, forecast, trace and PPC exactly; no MCMC resampling.','outputs/COMPACT_REPLAY_CHECK.txt')

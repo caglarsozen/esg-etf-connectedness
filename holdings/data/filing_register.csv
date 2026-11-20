@@ -1,0 +1,11 @@
+round,fund,report_date,source_file,source_url,positions_read,equity_value_usd
+Spring,ICLN,2023-04-30,ICLN23Apr,https://www.sec.gov/Archives/edgar/data/1100663/000119312523181113/d512834dncsr.htm,99,4455521850
+Spring,TAN,2023-05-31,TAN23May,https://www.sec.gov/Archives/edgar/data/1378872/000175272423166900/edgar.htm,44,2031446848
+Spring,QCLN,2023-06-30,QCLN23June,https://www.sec.gov/Archives/edgar/data/1329377/000144554623005642/etf1_ncsrs.htm,64,1561926597
+Spring,XLK,2023-06-30,XLK23June,https://www.sec.gov/Archives/edgar/data/1064641/000175272423196560/NPORT_J917_36803071_0623.htm,65,49901673397
+Spring,SPY,2023-06-30,SPY23June,https://www.sec.gov/Archives/edgar/data/884394/000175272423196486/NPORT_J905_49829319_0623.htm,503,423424467429
+Autumn,ICLN,2023-10-31,ICLN23,https://www.sec.gov/Archives/edgar/data/1100663/000119312524002049/d586624dncsrs.htm,100,2532570581
+Autumn,TAN,2023-11-30,TAN23,https://www.sec.gov/Archives/edgar/data/1378872/000175272424016957/edgar.htm,41,1301268128
+Autumn,QCLN,2023-09-30,QCLN23,https://www.sec.gov/Archives/edgar/data/1329377/000175272423269925/265004FT093023.htm,64,1228162960
+Autumn,XLK,2023-09-30,XLK23,https://www.sec.gov/Archives/edgar/data/1064641/000119312523289829/d655772dncsr.htm,65,47538638144
+Autumn,SPY,2023-09-30,SPY23,https://links.sgx.com/FileOpen/SPY%20-%20Annual%20Report%20-%2030%20September%202023.ashx?App=Announcement&FileID=779992,503,403907885747
